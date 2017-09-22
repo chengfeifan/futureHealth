@@ -1,0 +1,145 @@
+---
+title: "health data"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+# Description
+This file is for the extration of QA in health website
+
+```{r}
+# setwd()
+setwd("/Users/cheng/research/云计算/自然语言处理/html")
+
+# get file
+file_path<-"/Users/cheng/research/云计算/自然语言处理/html/"
+file_list<-list.files(file_path)
+file_path_full<-paste(file_path,file_list,sep="")
+
+# read file
+library(rvest)
+web<- read_html(file_path_full[2])
+
+# element
+question<-web %>% html_node("#w_left > div.tbox.tbox_nobg > div > div.t_right > h1") %>% html_text()
+question<-gsub("\n| ","",question)
+
+askTime<-web %>% html_node("#w_left > div.tbox.tbox_nobg > div > div.t_right > span.user_name > cite") %>% html_text()
+askTime<-strsplit(askTime,split = '\n')[[1]][2]
+askTime<-gsub("^\\s+","",askTime)
+
+userInfo<-web %>% html_nodes("#w_left > div.tbox.tbox_nobg > div > div.t_right > ul > li") %>% html_text()
+
+description<-web %>% html_nodes("#w_left > div.tbox.tbox_nobg > div > div.t_right > p") %>% html_text()
+
+tag<-web %>% html_nodes("#some_tag > a") %>% html_text()
+
+doctor<-web %>% html_node("#doctor_reply > div > div > div.t_right > span.user_name > strong > a") %>% html_text()
+doctor<-gsub("\n| ","",doctor)
+
+doctorInfo<-web %>% html_node("#doctor_reply > div > div > div.t_right > span.user_name > b") %>% html_text()
+doctorInfo<-gsub("\n","",doctorInfo)
+doctorInfo<-gsub("^\\s+","",doctorInfo)
+doctorInfo<-unlist(strsplit(doctorInfo,split="\u00A0"))
+doctorHospital<-doctorInfo[1]
+doctorType<-doctorInfo[4]
+
+answerTime<-web %>% html_nodes(xpath='//*[@id="doctor_reply"]/div/div/div[2]/span[1]/cite/text()') %>% html_text()
+answerTime<-gsub("\n","",answerTime)
+answerTime<-gsub("^\\s+","",answerTime)
+
+answer<-web %>% html_node("#doctor_reply > div > div > div.t_right > p") %>% html_text()
+answer<-gsub("\n","",answer)
+answer<-gsub("^\\s+|\\s+$","",answer)
+
+pageInfo<-list("Question"=list("quesion"=question,"askTime"=askTime,"description"=description),"userInfo"=userInfo,"tag"=tag,"doctor"=list("name"=doctor,"hospital"=doctorHospital,"type"=doctorType),"Answer"=list("time"=answerTime,"answer"=answer))
+
+library(rjson)
+pageInfoJson<-toJSON(pageInfo,"R")
+write(pageInfoJson,file="pageInfo.json")
+```
+# multiple file
+```{r}
+read_page<-function(url){
+    # read file
+  library(rvest)
+  web<- read_html(url)
+  
+  # element question
+  question<-web %>% html_node("#w_left > div.tbox.tbox_nobg > div > div.t_right > h1") %>% html_text()
+  question<-gsub("\n| ","",question)
+  
+  # element ask time
+  askTime<-web %>% html_node("#w_left > div.tbox.tbox_nobg > div > div.t_right > span.user_name > cite") %>% html_text()
+  askTime<-strsplit(askTime,split = '\n')[[1]][2]
+  askTime<-gsub("^\\s+","",askTime)
+  
+  # element information of user
+  userInfo<-web %>% html_nodes("#w_left > div.tbox.tbox_nobg > div > div.t_right > ul > li") %>% html_text()
+  
+  description<-web %>% html_nodes("#w_left > div.tbox.tbox_nobg > div > div.t_right > p") %>% html_text()
+  
+  tag<-web %>% html_nodes("#some_tag > a") %>% html_text()
+  
+  # doctor information
+  doctor<-web %>% html_node("#doctor_reply > div > div > div.t_right > span.user_name > strong > a") %>% html_text()
+  doctor<-gsub("\n| ","",doctor)
+  
+  doctorInfo<-web %>% html_node("#doctor_reply > div > div > div.t_right > span.user_name > b") %>% html_text()
+  doctorInfo<-gsub("\n","",doctorInfo)
+  doctorInfo<-gsub("^\\s+","",doctorInfo)
+  doctorInfo<-unlist(strsplit(doctorInfo,split="\u00A0"))
+  doctorHospital<-doctorInfo[1]
+  doctorType<-doctorInfo[4]
+  
+  answerTime<-web %>% html_nodes(xpath='//*[@id="doctor_reply"]/div/div/div[2]/span[1]/cite/text()') %>% html_text()
+  answerTime<-gsub("\n","",answerTime)
+  answerTime<-gsub("^\\s+","",answerTime)
+  
+  answer<-web %>% html_node("#doctor_reply > div > div > div.t_right > p") %>% html_text()
+answer<-gsub("\n","",answer)
+answer<-gsub("^\\s+|\\s+$","",answer)
+  pageInfo<-list("Question"=list("quesion"=question,"askTime"=askTime,"description"=description),"userInfo"=userInfo,"tag"=tag,"doctor"=list("name"=doctor,"hospital"=doctorHospital,"type"=doctorType),"Answer"=list("time"=answerTime,"answer"=answer))
+  
+  return(pageInfo)
+}
+```
+## run for multi file
+```{r}
+# get file
+file_path<-"/Users/cheng/research/云计算/自然语言处理/html/"
+file_list<-list.files(file_path)
+file_path_full<-paste(file_path,file_list,sep="")
+answer_file<-replicate(length(file_path_full),expr = list())
+for(i in 1:length(file_path_full)){
+  answer_file_one<-try(read_page(file_path_full[i]))
+  if(!inherits(answer_file_one,"try-error")){
+    answer_file[[i]]<-answer_file_one
+  }
+}
+
+library(rjson)
+pageInfoJson<-toJSON(answer_file,"R")
+write(pageInfoJson,file="pageInfo.json")
+```
+
+## run for multiple file
+## but write one file when one file is read
+```{r}
+# get file
+library(rjson)
+file_path<-"/Users/cheng/research/云计算/自然语言处理/html/"
+file_list<-list.files(file_path)
+file_path_full<-paste(file_path,file_list,sep="")
+
+for(i in 1:10){
+  answer_file_one<-try(read_page(file_path_full[i]))
+  if(!inherits(answer_file_one,"try-error")){
+    pageInfoJson<-toJSON(answer_file_one,"R")
+    write(pageInfoJson,file="pageInfoOne.json",append = T,sep = "\n")
+  }
+}
+```
+## output result
+
